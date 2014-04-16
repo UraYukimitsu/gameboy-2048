@@ -13,6 +13,7 @@ You can compile it using the make.bat script. Then, make sure you created a 2048
   
   
   To do list:
+============
     Undo [OK]
     High score [OK - Need to save it to keep it even after console shutdown]
     Game over detection [OK]
