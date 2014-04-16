@@ -50,7 +50,7 @@ void main()
 {
 	UINT8 joyState;
 	bestScore = 0;
-	maxTile = 4;
+	maxTile = 11;
 	set_bkg_data(0, 125, tiles);
 	dispTitleScreen();
 	
