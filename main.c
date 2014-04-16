@@ -14,8 +14,8 @@
 #define array(i, j) (*(arrayAccess + (4 * i) + (j)))
 #define array1(i, j) (*(array1Access + (4 * i) + (j)))
 #define array2(i, j) (*(array2Access + (4 * i) + (j)))
-//NYI #define backup1(i, j) (*(backup1Access + (4 * i) + (j)))
-//NYI #define backup2(i, j) (*(backup2Access + (4 * i) + (j)))
+#define backup1(i, j) (*(backup1Access + (4 * i) + (j)))
+#define backup2(i, j) (*(backup2Access + (4 * i) + (j)))
 
 
 void updateScreen();
@@ -23,6 +23,8 @@ void dispTitleScreen();
 void backGrid();
 void invertGrid();
 void rotateGrid();
+void undo();
+void undoSave();
 void updateScore(UINT16 sc, UINT8 pos);
 void dispGameOverScreen(UINT8* text);
 UINT16 pow(UINT16 x, UINT16 y);
@@ -35,16 +37,16 @@ UINT8 tile[1];
 UINT8 array[4][4];
 UINT8 array1[4][4];
 UINT8 array2[4][4];
-//NYI UINT8 backup1[4][4];
-//NYI UINT8 backup2[4][4];
+UINT8 backup1[4][4];
+UINT8 backup2[4][4];
 UINT8 str[6];
 UINT8 *arrayAccess = &array; //array cannot be always written if not accessed with its address... Yay, GBDK is *really* glitched...
 UINT8 *array1Access = &array1;
 UINT8 *array2Access = &array2;
-//NYI UINT8 *backup1Access = &backup1;
-//NYI UINT8 *backup2Access = &backup2;
-UINT8 i, j, k, maxTile, randgen, undo, x, y;
-UINT16 score, bestScore;
+UINT8 *backup1Access = &backup1;
+UINT8 *backup2Access = &backup2;
+UINT8 i, j, k, maxTile, randgen, undoCount, x, y, turn;
+UINT16 score, bestScore, oldScore1, oldScore2;
 
 void main()
 {
@@ -57,7 +59,8 @@ void main()
 	start:
 	
 	score = 0;
-	undo = 2;
+	turn = 0;
+	undoCount = 2;
 
 	set_bkg_tiles(0, 0, 20, 18, gamemap);
 	
@@ -82,10 +85,13 @@ void main()
 			joyState = joypad();
 		if(joyState&J_B)
 		{
-			if(undo)
+			if(undoCount && turn > 0)
 			{
-				undo--;
-				tile[0] = undo + 80;
+				undoCount--;
+				turn--;
+				undo();
+				updateScore(score, 6);
+				tile[0] = undoCount + 80;
 				set_bkg_tiles(9, 4, 1, 1, tile);
 			}
 			updateScreen();
@@ -120,6 +126,7 @@ void main()
 					{
 						array(y, i - 1) = 0;
 						array(y, i)++;
+						oldScore1 = score;
 						score += pow(2, array(y, i) - 1);
 						if(score >= bestScore)
 							bestScore = score;
@@ -129,7 +136,7 @@ void main()
 							waitpadup();
 							waitpad(J_A|J_B|J_SELECT|J_START|J_UP|J_DOWN|J_LEFT|J_RIGHT);
 							waitpadup();
-							dispGameOverScreen(".......you.win......");
+							dispGameOverScreen(".......you win......");
 							goto start;
 						}
 						for(j = 0; j < i; j++)
@@ -144,15 +151,29 @@ void main()
 				}
 			}
 			if(compare())
-				randCell();
+				randCell(); turn++; undoSave();
 			if(gameOver())
 			{
 				updateScreen();
 				waitpadup();
-				waitpad(J_A|J_B|J_SELECT|J_START|J_UP|J_DOWN|J_LEFT|J_RIGHT);
-				waitpadup();
-				dispGameOverScreen("......game.over.....");
-				goto start;
+				while(!(joyState&J_B || joyState&J_UP || joyState&J_DOWN || joyState&J_RIGHT || joyState&J_LEFT || joyState&J_START))
+					joyState = joypad();
+				if(joyState&J_B)
+				{
+					if(undoCount && turn > 1)
+					{
+						undoCount--;
+						turn--;
+						undo();
+						updateScore(score, 6);
+						tile[0] = undoCount + 80;
+						set_bkg_tiles(9, 4, 1, 1, tile);
+					}
+					updateScreen();
+				} else {
+					dispGameOverScreen("......game.over.....");
+					goto start;
+				}
 			}
 		}
 		
@@ -182,6 +203,29 @@ void backGrid()
 	for(i = 0; i < 4; i++)
 		for(j = 0; j < 4; j++)
 			array1(i, j) = array(i, j);
+}
+
+void undoSave()
+{
+	for(i = 0; i < 4; i++)
+		for(j = 0; j < 4; j++)
+			backup2(i, j) = backup1(i, j);
+	oldScore2 = oldScore1;
+	for(i = 0; i < 4; i++)
+		for(j = 0; j < 4; j++)
+			backup1(i, j) = array1(i, j);
+}
+
+void undo()
+{
+	for(i = 0; i < 4; i++)
+		for(j = 0; j < 4; j++)
+			array(i, j) = backup1(i, j);
+	score = oldScore1;
+	for(i = 0; i < 4; i++)
+		for(j = 0; j < 4; j++)
+			backup1(i, j) = backup2(i, j);
+	oldScore1 = oldScore2;
 }
 
 void invertGrid()
@@ -277,6 +321,11 @@ void updateScore(UINT16 sc, UINT8 pos)
 	{
 		tile[0] = str[strlen(str) - i - 1] + (80 - '0');
 		set_bkg_tiles(pos - i, 2, 1, 1, tile);
+	}
+	if(i < 5)
+	{
+		tile[0] = 80;
+		set_bkg_tiles(pos - i - 1, 2, 1, 1, tile);
 	}
 }
 
